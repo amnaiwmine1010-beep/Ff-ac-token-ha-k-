@@ -4,3 +4,4 @@ requests>=2.31.0
 httpx>=0.24.0
 pycryptodome>=3.18.0
 protobuf>=4.0.0
+protobuf-decoder>=0.3.8
