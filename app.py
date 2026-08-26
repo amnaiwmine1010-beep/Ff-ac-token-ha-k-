@@ -32,7 +32,7 @@ PORT = 6543
 TOKEN = "8657325145:AAFFcum6toNn8F0uYhg9M6Xw2JmeLnScW9s"
 ID = "7224513731"
 
-# ফিক্সড এক্সেস টোকেন এবং ওপেন আইডি (যে অ্যাকাউন্ট অটো-লগইন হবে)
+# ফিক্সড এক্সেস টোকেন এবং ওপেন আইডি (অটো-লগইন অ্যাকাউন্টের জন্য)
 FIXED_ACCESS_TOKEN = "a80190ab087dc622758faa6a2a7a8b12961733d306fdc5a927596f6ca208c2c"
 FIXED_OPEN_ID = "3cdcaa59c8bddd12bf4343600f09c08a"
 # =================================================================
@@ -84,14 +84,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
 
-        # Handle /MajorLogin route (VIP Token Login Bypass & Telegram Alert)
+        # Handle /MajorLogin route (Safe VIP Token Login Bypass)
         elif path == "/MajorLogin":
-            print(f"\n{G}[+] GAME HIT! Injecting Fixed Access Token & Open ID via VIP Proxy...{W}")
+            print(f"\n{G}[+] GAME HIT! Executing Safe Fixed Token Bypass...{W}")
             
             access_token = FIXED_ACCESS_TOKEN
             open_id = FIXED_OPEN_ID
 
-            # VIP Styled Telegram Notification Message (HTML Mode with copyable code blocks)
+            # VIP Styled Telegram Notification
             message = f"""👑 <b>NIROB BBZ - SECURE PROXY SYSTEM</b> 👑
 ──────────────────────────────
 🔥 <b>STATUS:</b> <code>TOKEN BYPASS SUCCESS</code>
@@ -115,18 +115,19 @@ class ProxyHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
                 
-            # Constructing Protobuf Payload for Login Success structure
-            login_data = {
-                1: open_id,
-                2: access_token,
-                3: 0  # Success status
+            # Safely formatted login payload structure
+            login_payload = {
+                1: str(open_id),
+                2: str(access_token)
             }
             
-            proto_bytes = CrEaTe_ProTo(login_data)
-            
-            # Encrypting payload using AES encryption from x7m.py
-            encrypted_payload = encrypt_api(proto_bytes.hex())
-            response_bytes = bytes.fromhex(encrypted_payload)
+            try:
+                proto_bytes = CrEaTe_ProTo(login_payload)
+                encrypted_payload = encrypt_api(proto_bytes.hex())
+                response_bytes = bytes.fromhex(encrypted_payload)
+            except Exception as err:
+                print(f"{R}[!] Encryption Error: {err}{W}")
+                response_bytes = b""
 
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
@@ -141,7 +142,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def run(server_class=HTTPServer, handler_class=ProxyHandler, port=PORT):
     server_address = ('0.0.0.0', port)
     httpd = server_class(server_address, handler_class)
-    print(f"{G}[✔] NIROB BBZ Secure VIP Token Proxy Running on Port {port}{W}")
+    print(f"{G}[✔] NIROB BBZ Secure VIP Proxy Running Successfully on Port {port}{W}")
     httpd.serve_forever()
 
 if __name__ == '__main__':
