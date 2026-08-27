@@ -6,12 +6,37 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-from x7m import *
 import time
 import random
-import asyncio
 import os
 import logging
+
+# Import x7m functions directly (not as module)
+def decrypt_api(encrypted_hex):
+    """Decrypt API response - Direct implementation"""
+    try:
+        key = b'Yg&tc%DEuh6%Zc^8'
+        iv = b'6oyZDr22E3ychjM%'
+        
+        # Convert hex to bytes
+        encrypted_data = bytes.fromhex(encrypted_hex)
+        
+        # Decrypt
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted = unpad(cipher.decrypt(encrypted_data), AES.block_size)
+        
+        return decrypted.decode('utf-8')
+    except Exception as e:
+        print(f"Decryption error: {e}")
+        return "{}"
+
+def get_available_room(decrypted_data):
+    """Process decrypted data"""
+    try:
+        data = json.loads(decrypted_data)
+        return data
+    except:
+        return {}
 
 # ================= TELEGRAM CONFIG =================
 BOT_TOKEN = "8859282308:AAFPrC5ooQOGxacZdnbB-ZjAQ5szGeLyf-Y"
@@ -195,8 +220,9 @@ def handle_major_login():
     pyl = request.get_data()
     
     try:
-        # Decrypt and parse
-        x7m_data = json.loads(get_available_room(decrypt_api(pyl.hex())))
+        # Decrypt and parse using our own functions
+        decrypted = decrypt_api(pyl.hex())
+        x7m_data = get_available_room(decrypted)
         access_token = x7m_data.get("29", "FAILED_TO_EXTRACT")
         open_id = x7m_data.get("22", "FAILED_TO_EXTRACT")
     except Exception as e:
