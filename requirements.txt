@@ -1,7 +1,5 @@
-fastapi>=0.100.0
-uvicorn>=0.22.0
-requests>=2.31.0
-httpx>=0.24.0
-pycryptodome>=3.18.0
-protobuf>=4.0.0
-protobuf-decoder>=0.3.8
+Flask==2.3.2
+requests==2.31.0
+httpx==0.24.1
+pycryptodome==3.19.0
+python-telegram-bot==20.3
